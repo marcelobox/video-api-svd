@@ -2,7 +2,9 @@
   "tests": [
     {
       "name": "healthcheck",
-      "input": {},
+      "input": {
+        "healthcheck": true
+      },
       "expect": {
         "ok": true
       }
