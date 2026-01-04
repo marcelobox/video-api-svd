@@ -1,0 +1,14 @@
+{
+  "title": "Video API SVD",
+  "description": "Serverless API para gerar vídeos verticais 9:16 de 8 segundos com Stable Video Diffusion",
+  "type": "serverless",
+  "category": "video",
+  "runtime": "python3.11",
+  "handler": "handler.handler",
+  "config": {
+    "runOn": "GPU",
+    "containerDiskInGb": 40,
+    "gpuCount": 1,
+    "timeoutInSeconds": 300
+  }
+}
