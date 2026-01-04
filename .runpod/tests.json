@@ -2,12 +2,8 @@
   "tests": [
     {
       "name": "healthcheck",
-      "input": {
-        "healthcheck": true
-      },
-      "expect": {
-        "ok": true
-      }
+      "input": { "healthcheck": true },
+      "expect": { "ok": true }
     }
   ]
 }
