@@ -14,7 +14,6 @@ RUN apt-get update && apt-get install -y \
 # Python deps
 RUN pip3 install --upgrade pip
 
-# Dependências principais
 RUN pip3 install \
     runpod \
     torch \
@@ -22,12 +21,9 @@ RUN pip3 install \
     diffusers \
     transformers \
     accelerate \
-    safetensors \
     pillow \
+    safetensors \
     opencv-python
 
 # Copia o código
-COPY . .
-
-CMD ["python3", "handler.py"]
-
+COPY . /app
