@@ -5,83 +5,73 @@ import tempfile
 import subprocess
 import os
 
-from diffusers import StableVideoDiffusionPipeline
 from PIL import Image
 import torch
+from diffusers import StableVideoDiffusionPipeline
 
-
-# ===== CONFIG =====
-MODEL_PATH = "/models/svd"
 FPS = 12
 DURATION_S = 8
 NUM_FRAMES = FPS * DURATION_S
 RESOLUTION = (576, 1024)  # 9:16
 
+pipe = None  # lazy load
 
 def run_ffmpeg(frames_dir, output_mp4):
     cmd = [
-        "ffmpeg",
-        "-y",
+        "ffmpeg", "-y",
         "-framerate", str(FPS),
-        "-i", os.path.join(frames_dir, "f_%03d.png"),
+        "-i", f"{frames_dir}/%03d.png",
         "-c:v", "libx264",
         "-pix_fmt", "yuv420p",
-        "-movflags", "+faststart",
         output_mp4
     ]
     subprocess.run(cmd, check=True)
 
+def get_pipe():
+    global pipe
+    if pipe is None:
+        pipe = StableVideoDiffusionPipeline.from_pretrained(
+            "stabilityai/stable-video-diffusion-img2vid",
+            torch_dtype=torch.float16
+        ).to("cuda")
+    return pipe
 
 def handler(event):
-    image_b64 = event["input"].get("image_base64")
-    if not image_b64:
-        return {"error": "image_base64 is required"}
+    inp = event.get("input", {}) if isinstance(event, dict) else {}
 
-    image_bytes = base64.b64decode(image_b64)
-    img = Image.open(tempfile.NamedTemporaryFile(delete=False))
-    img.file.write(image_bytes)
-    img.file.flush()
+    # ✅ Healthcheck do Hub (não baixa modelo)
+    if inp.get("healthcheck") is True:
+        return {"ok": True}
 
-    image = Image.open(img.name).convert("RGB").resize(RESOLUTION)
+    prompt = inp.get("prompt", "cinematic scene")
 
-    pipe = StableVideoDiffusionPipeline.from_pretrained(
-        "stabilityai/stable-video-diffusion-img2vid",
-        torch_dtype=torch.float16,
-        variant="fp16"
-    ).to("cuda")
+    # (por enquanto) imagem preta padrão
+    image = Image.new("RGB", RESOLUTION, color=(0, 0, 0))
 
-    pipe.enable_attention_slicing()
-
-    result = pipe(
-        image=image,
-        num_frames=NUM_FRAMES,
-        decode_chunk_size=1,
-        motion_bucket_id=90,
-        noise_aug_strength=0.02,
-    )
-
-    frames = result.frames[0]
+    p = get_pipe()
+    frames = p(image=image, num_frames=NUM_FRAMES).frames[0]
 
     with tempfile.TemporaryDirectory() as tmp:
         frames_dir = os.path.join(tmp, "frames")
         os.makedirs(frames_dir, exist_ok=True)
 
         for i, f in enumerate(frames):
-            f.save(os.path.join(frames_dir, f"f_{i:03d}.png"))
+            f.save(os.path.join(frames_dir, f"{i:03d}.png"))
 
-        output_mp4 = os.path.join(tmp, f"video_{uuid.uuid4().hex}.mp4")
-        run_ffmpeg(frames_dir, output_mp4)
+        out_mp4 = os.path.join(tmp, f"video_{uuid.uuid4().hex}.mp4")
+        run_ffmpeg(frames_dir, out_mp4)
 
-        with open(output_mp4, "rb") as f:
-            mp4_b64 = base64.b64encode(f.read()).decode("utf-8")
+        with open(out_mp4, "rb") as f:
+            mp4_bytes = f.read()
+
+    mp4_b64 = base64.b64encode(mp4_bytes).decode("utf-8")
 
     return {
         "ok": True,
-        "duration": DURATION_S,
+        "duration_s": DURATION_S,
         "fps": FPS,
         "resolution": "576x1024",
-        "video_base64": mp4_b64
+        "mp4_base64": mp4_b64
     }
-
 
 runpod.serverless.start({"handler": handler})
