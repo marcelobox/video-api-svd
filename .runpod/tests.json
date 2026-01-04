@@ -1,0 +1,11 @@
+{
+  "tests": [
+    {
+      "name": "healthcheck",
+      "input": {},
+      "expect": {
+        "ok": true
+      }
+    }
+  ]
+}
